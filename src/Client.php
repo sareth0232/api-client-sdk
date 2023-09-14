@@ -1,10 +1,10 @@
 <?php
 
-namespace A8Client\Client;
+namespace A8Client;
 
 require_once 'Config.php';
 
-use A8Client\Services\BridgeService;
+use A8Client\Libraries\Services\BridgeService;
 
 class Client 
 {
