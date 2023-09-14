@@ -1,8 +1,8 @@
 <?php
 
-namespace A8Client\Services;
+namespace A8Client\libraries\Services;
 
-use A8Client\Services\ModelServiceFactory;
+use A8Client\libraries\Services\ModelServiceFactory;
 
 class BridgeService extends ModelServiceFactory
 {
