@@ -1,5 +1,5 @@
 {
-    "name": "client/api-client-sdk",
+    "name": "applicClient/api-client-sdk",
     "description": "A8 API Client SDK",
     "type": "library",
     "require": {
