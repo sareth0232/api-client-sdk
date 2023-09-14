@@ -1,6 +1,6 @@
 <?php
 
-namespace A8Client\Services;
+namespace A8Client\libraries\Services;
 
 use GuzzleHttp\Client;
 
