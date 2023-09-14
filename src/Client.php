@@ -4,7 +4,7 @@ namespace A8Client;
 
 require_once 'Config.php';
 
-use A8Client\Libraries\Services\BridgeService;
+use A8Client\libraries\Services\BridgeService;
 
 class Client 
 {
@@ -28,7 +28,7 @@ class Client
     public function getService ( $resource ) 
     {
 
-        if ( $ret = (new BridgeServiceFactory ( $resource, $this->config )) ) {
+        if ( $ret = (new BridgeService ( $resource, $this->config )) ) {
 
             return $ret;
 
