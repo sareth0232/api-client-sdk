@@ -1,6 +1,6 @@
 <?php
 
-namespace A8Client\Service;
+namespace A8Client\libraries\Service;
 
 include_once ( '../../Config.php' );
 
