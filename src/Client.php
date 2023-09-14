@@ -13,7 +13,7 @@ class Client
 
     public $config = [];
 
-    public function __construct()
+    public function __construct( $conf )
     {
 
         $this->config = $conf;
