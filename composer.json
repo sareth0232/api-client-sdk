@@ -1,0 +1,32 @@
+{
+	"name": "A8 Client SDK",
+	"description": "",
+	"keywords": [
+		"A8",
+		"A8Client",
+		"php",
+		"sdk",
+		"api"	
+	],
+	"homepage": "",
+	"license": "A8",
+	"authors": [
+		{
+			"name": "A8",
+			"homepage": ""
+		}	
+	],
+	"require": {
+		"php": "version",
+		"vendor/guzzle": "version"
+	},
+	"require-dev": {
+		""
+	},
+	"autoload": {
+		"psr-4": { "A8Client\\": "src/" }
+	},
+	"autoload-dev": {
+		"psr-4": { "A8Client\\": "test/" }
+	}
+}
