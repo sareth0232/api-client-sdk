@@ -1,8 +1,8 @@
 <?php
 
-namespace A8Client\Services;
+namespace A8Client\libraries\Services;
 
-use A8Client\Services\RequestService;
+use A8Client\libraries\Services\RequestService;
 
 abstract class ModelServiceFactory
 {
@@ -13,11 +13,11 @@ abstract class ModelServiceFactory
 
     private $with;
 
-    public function __construct ( String $resource, RequestService $requestService )
+    public function __construct ( String $resource )
     {
 
         $this->resource = $resource;
-        $this->requestService = $requestService;
+        // $this->requestService = $requestService;
 
     }
     
@@ -32,6 +32,13 @@ abstract class ModelServiceFactory
     {
 
         return $this->getService ( $id, $expand );
+
+    }
+
+    public function find ( array $conditions, array $sort, int $limit, int $offset ) 
+    {
+
+        return $this->findService ( $conditions, $sort, $limit, $offset );
 
     }
 
@@ -79,6 +86,13 @@ abstract class ModelServiceFactory
             "description" => 'Test description',
             "company" => $expand
         ];
+
+    }
+
+    public function findService ( array $conditions, array $sort, int $limit, int $offset ) 
+    {
+
+        return [$conditions, $sort, $limit, $offset];
 
     }
 
