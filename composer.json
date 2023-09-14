@@ -1,32 +1,23 @@
 {
-	"name": "A8 Client SDK",
-	"description": "",
-	"keywords": [
-		"A8",
-		"A8Client",
-		"php",
-		"sdk",
-		"api"	
-	],
-	"homepage": "",
-	"license": "A8",
-	"authors": [
-		{
-			"name": "A8",
-			"homepage": ""
-		}	
-	],
-	"require": {
-		"php": "version",
-		"vendor/guzzle": "version"
-	},
-	"require-dev": {
-		""
-	},
-	"autoload": {
-		"psr-4": { "A8Client\\": "src/" }
-	},
-	"autoload-dev": {
-		"psr-4": { "A8Client\\": "test/" }
-	}
+    "name": "client/api-client-sdk",
+    "description": "A8 API Client SDK",
+    "type": "library",
+    "require": {
+        "guzzlehttp/guzzle": "^7.8"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "A8"
+        }
+    ],
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "A8Client\\": "src/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    }
 }
