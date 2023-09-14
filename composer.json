@@ -2,9 +2,6 @@
     "name": "appclient/api-client-sdk",
     "description": "A8 API Client SDK",
     "type": "library",
-    "require": {
-        "guzzlehttp/guzzle": "^7.8"
-    },
     "license": "MIT",
     "authors": [
         {
@@ -16,8 +13,5 @@
         "psr-4": {
             "A8Client\\": "src/"
         }
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^9.5"
     }
 }
