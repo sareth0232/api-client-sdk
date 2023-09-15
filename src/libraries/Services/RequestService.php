@@ -16,6 +16,7 @@ class RequestService
     const HEADER_SIGNATURE = 'Aas-Signature';
     const HEADER_AUTH_TYPE = 'Aas-Auth-Type';
     const GLUE = '/';
+    const SIGN_GLUE = '\n';
     const METHOD_GLUE = '_';
 
 	private static $_client;
@@ -26,6 +27,7 @@ class RequestService
     private static $_auth_data;
     private static $_authorization;
     private static $_config;
+    private static $_body;
 
 	private static function clientInstance()
     {   
@@ -48,6 +50,7 @@ class RequestService
     {
         static::$_method = $method;
         static::$_args = $args;
+        static::$_body = '';
 
         $method = self::METHOD_GLUE.$method;
 
@@ -100,8 +103,8 @@ class RequestService
             self::HEADER_AUTHORIZATION => 'Basic '.static::$_authorization,
             self::HEADER_ACCEPT => 'application/json',
             self::HEADER_CONTENT_TYPE => 'application/x-www-form-urlencoded',
-            self::HEADER_TIMESTAMP => self::$_current_timestamp,
-            self::HEADER_SIGNATURE => '95d068137575e16392c0b42153c7451fd10ad126904a84581dcc88191ed5fac4',
+            self::HEADER_TIMESTAMP => static::$_current_timestamp,
+            self::HEADER_SIGNATURE => static::sign(),
             self::HEADER_AUTH_TYPE => static::$_config['AUTH_TYPE']
         ];
     }
@@ -175,6 +178,26 @@ class RequestService
                 static::$_config = $config;
             }
         } 
+    }
+
+    private static function sign()
+    {
+        list($path, $query_str) = static::$_args;
+
+        $query_str = explode("?", $query_str);
+        
+        $unsigned = [
+            static::$_method,
+            static::$_config['BASE_URI'].self::GLUE.$path.self::GLUE.$query_str[0],
+            (isset($query_str[1]) ? $query_str[1] : '' ) ,
+            static::$_body,
+            static::$_current_timestamp
+        ];
+        
+        $to_sign = implode(self::SIGN_GLUE, $unsigned);
+
+        $signed = hash_hmac(static::$_config['ALGO'], $to_sign, static::$_config['API_SECRET_AUTH_3']);
+        return $signed;
     }
 	
 }
