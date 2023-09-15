@@ -28,10 +28,10 @@ abstract class ModelServiceFactory
 
     }
 
-    public function get ( $id, $expand ) 
+    public function get ( $id ) 
     {
 
-        return $this->getService ( $id, $expand );
+        return $this->getService ( $id );
 
     }
 
@@ -77,22 +77,21 @@ abstract class ModelServiceFactory
 
     }
 
-    public function getService ( $id, $expand )
+    public function getService ( $id )
     {
         
-        return [
-            'id' => $id,
-            "name" => 'Test',
-            "description" => 'Test description',
-            "company" => $expand
-        ];
+        return RequestService::get($this->resource, $id);
 
     }
 
     public function findService ( array $conditions, array $sort, int $limit, int $offset ) 
     {
 
-        return [$conditions, $sort, $limit, $offset];
+        return [
+            "select" => $this->select,
+            "with" => $this->with, 
+            "find:" => [$conditions, $sort, $limit, $offset]
+        ];
 
     }
 
