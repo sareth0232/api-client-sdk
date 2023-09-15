@@ -79,7 +79,7 @@ abstract class ModelServiceFactory
 
     public function getService ( $id )
     {
-        
+
         return RequestService::get($this->resource, $id);
 
     }
@@ -121,7 +121,7 @@ abstract class ModelServiceFactory
 
     }
 
-    public function select( array $str )
+    public function select( String $str )
     {
         $this->select = $str;
 
@@ -129,7 +129,7 @@ abstract class ModelServiceFactory
     
     }
 
-    public function with( array $arr )
+    public function with( String $arr )
     {
 
         $this->with = $arr;
