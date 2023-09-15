@@ -87,7 +87,6 @@ class RequestService
 
     public static function _get()
     {
-        static::clientInstance();
 
         $path = implode(self::GLUE, static::$_args);
         
