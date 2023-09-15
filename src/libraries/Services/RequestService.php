@@ -20,12 +20,11 @@ class RequestService
     const AUTH_TYPE = 3;
     const CLIENT_DOMAIN = 'client7.devcebu.com';
     const API_KEY = 'a8591d1354e958cc842d210a932be3fb';
+    const API_SECRET_AUTH_3 = '895a744cb823686f485ab1d9ff1b228d9823bef8214b0439954dbebe4c0c5f92';
     const HTTP_ERRORS = FALSE;
     const JWT_KEY = 'enMB8ms2Nh8RNz7nRKrGTiMRG9aRPp8G5d';
     const JWT_ALGORITHM = 'HS256';
-    const USERNAME = 'a8591d1354e958cc842d210a932be3fb';
-    const PASSWORD = '{"domain":"client7.devcebu.com","jwt":"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE2OTQ3NzM0NDAsImlkIjo1NiwidXNlcm5hbWUiOiJVU0VSMSJ9.9Jxy3L173Igib6FOyvCXBNs2MzedxFQuVHPj9o_yCx4"}';
-    
+    const TOKEN_TTL = 3600 * 4; 
 
 	private static $_client;
     private static $_header;
@@ -33,9 +32,13 @@ class RequestService
     private static $_method;
     private static $_args;
     private static $_auth_data;
+    private static $_authorization;
 
-	private static function clientInstance()
+    private static function clientInstance()
     {        
+        static::auth_data();
+        static::get_authorization();
+
         static::$_current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
 
         static::$_client = new Client([
@@ -91,7 +94,7 @@ class RequestService
     {
         static::clientInstance();
 
-        $path = implode("/", static::$_args);
+        $path = implode(self::GLUE, static::$_args);
         
         return static::send( static::$_method, $path );
     
@@ -99,10 +102,8 @@ class RequestService
 
     private static function prep_headers()
     {
-        static::auth_data();
-        // print_r(base64_encode(self::API_KEY.':'.static::$_auth_data));exit;
         return [
-            self::HEADER_AUTHORIZATION => 'Basic YTg1OTFkMTM1NGU5NThjYzg0MmQyMTBhOTMyYmUzZmI6eyJkb21haW4iOiJjbGllbnQ3LmRldmNlYnUuY29tIiwiand0IjoiZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SmxlSEFpT2pFMk9UUTNOek0wTkRBc0ltbGtJam8xTml3aWRYTmxjbTVoYldVaU9pSlZVMFZTTVNKOS45Snh5M0wxNzNJZ2liNkZPeXZDWEJOczJNemVkeEZRdVZIUGo5b195Q3g0In0=',
+            self::HEADER_AUTHORIZATION => 'Basic '.static::$_authorization,
             self::HEADER_ACCEPT => 'application/json',
             self::HEADER_CONTENT_TYPE => 'application/x-www-form-urlencoded',
             self::HEADER_TIMESTAMP => self::$_current_timestamp,
@@ -113,7 +114,7 @@ class RequestService
 
     private static function auth()
     {
-        $token = static::generate_token();
+        $token = static::generate_token( static::$_args );
 
         return json_encode((object)[
             "domain" => self::CLIENT_DOMAIN,
@@ -123,12 +124,12 @@ class RequestService
 
     private static function generate_token( $data = null )
     {
-        $data['API_TIME'] = time();
-
         if ( $data && is_array( $data ) ) 
         {
             try
             {
+                $data['API_TIME'] = time();
+
                 return JWT::encode( $data, self::JWT_KEY, self::JWT_ALGORITHM );
             }
             catch ( Exception $e ) 
@@ -147,10 +148,27 @@ class RequestService
     private static function auth_data()
     {
         static::$_auth_data = json_encode([
-            'domain'=> self::CLIENT_DOMAIN,
-            'username'=> self::USERNAME,
-            'password'=> self::PASSWORD
+            'domain' => $_SERVER['SERVER_NAME'],
+            'jwt' => static::get_access(56)
         ]);
+    }
+
+    private static function get_access( $person_id )
+    {
+        $payload = [
+            'exp' => time() + (int) self::TOKEN_TTL,
+            'id' => $person_id,
+        ];
+                
+        return JWT::encode($payload, 
+            self::API_SECRET_AUTH_3,
+            self::JWT_ALGORITHM,
+        );
+    }
+
+    private static function get_authorization()
+    {
+        static::$_authorization = base64_encode( self::API_KEY . ':' . static::$_auth_data );
     }
 	
 }
