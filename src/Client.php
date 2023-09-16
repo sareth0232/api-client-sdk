@@ -2,21 +2,24 @@
 
 namespace A8Client;
 
-require_once 'Config.php';
-
 use A8Client\libraries\Services\BridgeService;
 
 class Client 
 {
 
-    private $model = [];
-
     public $config = [];
+    public $_key;
+    public $_scode;
+    public $_cdomain;
+    public $_option;
 
-    public function __construct( $conf )
+    public function __construct( String $_key, String $_scode, String $_cdomain, $_option = [] )
     {
 
-        $this->config = $conf;
+        $this->_key = $_key;
+        $this->_scode = $_scode;
+        $this->_cdomain = $_cdomain;
+        $this->_option = $_option;
 
     }
 
