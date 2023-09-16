@@ -4,8 +4,9 @@ namespace A8Client\libraries\Services;
 
 use GuzzleHttp\Client;
 use Firebase\JWT\JWT;
+use A8Client\libraries\Services\SecurityService;
 
-class RequestService
+class RequestService extends SecurityService
 {
 
     const CONFIG_PATH = __DIR__.'/../../api_client_sdk_config.ini';
@@ -19,7 +20,7 @@ class RequestService
     const SIGN_GLUE = '\n';
     const METHOD_GLUE = '_';
 
-	private static $_client;
+    private static $_client;
     private static $_header;
     private static $_current_timestamp;
     private static $_method;
@@ -29,7 +30,7 @@ class RequestService
     private static $_config;
     private static $_body;
 
-	private static function clientInstance()
+    private static function clientInstance()
     {   
         
         static::initialize_config();
