@@ -7,11 +7,16 @@ use A8Client\libraries\Services\BridgeService;
 class Client 
 {
 
-    public $config = [];
-    public $_key;
-    public $_scode;
-    public $_cdomain;
-    public $_option;
+    const KEY = 'key';
+    const CODE = 'code';
+    const CLIENT_DOMAIN = 'client_domain';
+    const OPTION = 'option';
+
+    private $_config = [];
+    private $_key;
+    private $_scode;
+    private $_cdomain;
+    private $_option;
 
     public function __construct( String $_key, String $_scode, String $_cdomain, $_option = [] )
     {
@@ -31,13 +36,25 @@ class Client
     public function getService ( $resource ) 
     {
 
-        if ( $ret = (new BridgeService ( $resource, $this->config )) ) {
+        self::set_cred();
+
+        if ( $ret = (new BridgeService ( $resource, $this->_config )) ) {
 
             return $ret;
 
         }
 
         return "Endpoint not found";
+    }
+
+    private function set_cred()
+    {
+        $this->_config = [
+            self::KEY => $this->_key,
+            self::CODE => $this->_scode,
+            self::CLIENT_DOMAIN => $this->_cdomain,
+            self::OPTION => $this->_option
+        ];
     }
 
 }
