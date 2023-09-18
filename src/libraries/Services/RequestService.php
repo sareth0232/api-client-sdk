@@ -19,6 +19,12 @@ class RequestService extends SecurityService
     const GLUE = '/';
     const SIGN_GLUE = '\n';
     const METHOD_GLUE = '_';
+    const REQUIRED_KEY = [
+        'key',
+        'code', 
+        'client_domain', 
+        'option'
+    ];
 
     private static $_client;
     private static $_header;
@@ -29,6 +35,14 @@ class RequestService extends SecurityService
     private static $_authorization;
     private static $_config;
     private static $_body;
+    private static $_cred;
+    private static $_base_path;
+    private static $_auth_type;
+
+    public function __construct()
+    {
+        print_r($this->_config);exit;
+    }
 
     private static function clientInstance()
     {   
@@ -40,17 +54,18 @@ class RequestService extends SecurityService
         static::$_current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
 
         static::$_client = new Client([
-            'base_uri' => static::$_config['BASE_URI'],
+            'base_uri' => static::$_base_path,
             'headers' => static::prep_headers(),
-            static::$_config['API_KEY'] => static::auth(),
+            static::$_cred['key'] => static::auth(),
             'http_errors'  => static::$_config['HTTP_ERRORS']
         ]);
     }
     
     public static function __callStatic($method, $args) 
     {
+        static::get_cred($args);
         static::$_method = $method;
-        static::$_args = $args;
+        static::$_args = static::get_params($args);
         static::$_body = '';
 
         $method = self::METHOD_GLUE.$method;
@@ -91,11 +106,15 @@ class RequestService extends SecurityService
 
     public static function _get()
     {
+        if ( count(static::$_args) === 4 )
+        {
+            $path = implode(self::GLUE, [static::$_args[0], static::$_args[1]]);
+            $select = static::$_args[2];
+            $with = explode(',', static::$_args[3]);
+            return static::send( static::$_method, $path.'?$expand='.$with[0].'&$select='.$select );
+        }
 
-        $path = implode(self::GLUE, static::$_args);
-        
-        return static::send( static::$_method, $path );
-    
+        throw new \Exception('Invalid arguments in get method.');
     }
 
     private static function prep_headers()
@@ -106,7 +125,7 @@ class RequestService extends SecurityService
             self::HEADER_CONTENT_TYPE => 'application/x-www-form-urlencoded',
             self::HEADER_TIMESTAMP => static::$_current_timestamp,
             self::HEADER_SIGNATURE => static::sign(),
-            self::HEADER_AUTH_TYPE => static::$_config['AUTH_TYPE']
+            self::HEADER_AUTH_TYPE => static::$_auth_type
         ];
     }
 
@@ -115,7 +134,7 @@ class RequestService extends SecurityService
         $token = static::generate_token( static::$_args );
 
         return json_encode((object)[
-            "domain" => static::$_config['CLIENT_DOMAIN'],
+            "domain" => static::$_cred['client_domain'],
             "jwt" => $token
         ]);
     }
@@ -146,7 +165,7 @@ class RequestService extends SecurityService
     private static function auth_data()
     {
         static::$_auth_data = json_encode([
-            'domain' => $_SERVER['SERVER_NAME'],
+            'domain' => static::$_cred['client_domain'],
             'jwt' => static::get_access(56)
         ]);
     }
@@ -159,14 +178,14 @@ class RequestService extends SecurityService
         ];
                 
         return JWT::encode($payload, 
-            static::$_config['API_SECRET_AUTH_3'],
+            static::$_cred['code'],
             static::$_config['JWT_ALGORITHM'],
         );
     }
 
     private static function get_authorization()
     {
-        static::$_authorization = base64_encode( static::$_config['API_KEY'] . ':' . static::$_auth_data );
+        static::$_authorization = base64_encode( static::$_cred['key'] . ':' . static::$_auth_data );
     }
 
     private static function initialize_config()
@@ -177,8 +196,29 @@ class RequestService extends SecurityService
 
             if ( $config ) {
                 static::$_config = $config;
+                static::$_base_path = static::$_config['BASE_URI'];
+                static::$_auth_type = static::$_config['AUTH_TYPE'];
+
+                // 1. check if base_path key is exist
+                if ( array_key_exists('base_path', static::$_cred['option']) )
+                {
+                    if ( static::$_cred['option']['base_path'] ) 
+                    {
+                        static::$_base_path = static::$_cred['option']['base_path'];        
+                    }
+                }
+
+                // 2. check if auth_type key is exist
+                if ( array_key_exists('base_path', static::$_cred['option']) )
+                {
+                    if ( static::$_cred['option']['base_path'] ) 
+                    {
+                        static::$_auth_type = static::$_cred['option']['auth_type'];        
+                    }
+                }
+
             }
-        } 
+        }
     }
 
     private static function sign()
@@ -189,7 +229,7 @@ class RequestService extends SecurityService
         
         $unsigned = [
             static::$_method,
-            static::$_config['BASE_URI'].self::GLUE.$path.self::GLUE.$query_str[0],
+            static::$_base_path.self::GLUE.$path.self::GLUE.$query_str[0],
             (isset($query_str[1]) ? $query_str[1] : '' ) ,
             static::$_body,
             static::$_current_timestamp
@@ -197,8 +237,30 @@ class RequestService extends SecurityService
         
         $to_sign = implode(self::SIGN_GLUE, $unsigned);
 
-        $signed = hash_hmac(static::$_config['ALGO'], $to_sign, static::$_config['API_SECRET_AUTH_3']);
+        $signed = hash_hmac(static::$_config['ALGO'], $to_sign, static::$_cred['code']);
         return $signed;
+    }
+
+    private static function get_cred( $args )
+    {
+        $keys = [];
+
+        foreach ( self::REQUIRED_KEY as $k=>$val )
+        {
+            $keys[$val] = $args[(count($args)-1)][$val];
+        }
+
+        static::$_cred = $keys;
+
+    }
+
+    private static function get_params( $args )
+    {
+       
+        unset($args[(count($args)-1)]);
+        
+        return $args;
+    
     }
 	
 }
