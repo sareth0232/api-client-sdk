@@ -7,12 +7,11 @@ use A8Client\libraries\Services\ModelServiceFactory;
 class BridgeService extends ModelServiceFactory
 {
 
-	private $config;
+	public $_cred;
 
-    public function __construct( $resource, $config )
+    public function __construct( $resource, $_cred )
     {
-    	
-    	$this->config = $config;
+        $this->_cred = $_cred;
 
         parent::__construct( $resource );
 
