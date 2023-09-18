@@ -44,7 +44,7 @@ class Client
 
         }
 
-        return "Endpoint not found";
+        throw new \Exception("API endpoint not found.");
     }
 
     private function set_cred()
