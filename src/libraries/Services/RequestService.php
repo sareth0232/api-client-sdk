@@ -39,11 +39,6 @@ class RequestService extends SecurityService
     private static $_base_path;
     private static $_auth_type;
 
-    public function __construct()
-    {
-        print_r($this->_config);exit;
-    }
-
     private static function clientInstance()
     {   
         
