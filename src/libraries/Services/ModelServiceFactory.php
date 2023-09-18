@@ -8,16 +8,17 @@ abstract class ModelServiceFactory
 {
 
     private $resource;
-
     private $select;
-
     private $with;
+    public $_cred;
 
     public function __construct ( String $resource )
     {
 
         $this->resource = $resource;
-        // $this->requestService = $requestService;
+        $this->_cred = $this->_cred;
+        $this->select = '';
+        $this->with = '';
 
     }
     
@@ -80,7 +81,7 @@ abstract class ModelServiceFactory
     public function getService ( $id )
     {
 
-        return RequestService::get($this->resource, $id);
+        return RequestService::get($this->resource, $id, $this->select, $this->with, $this->_cred);
 
     }
 
