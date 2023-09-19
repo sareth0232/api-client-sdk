@@ -2,76 +2,61 @@
 
 namespace A8Client;
 
-use A8Client\libraries\Services\BridgeService;
+use A8Client\libraries\Services\ModelService;
 
-class Client 
+class Client
 {
 
-    const KEY = 'key';
-    const CODE = 'code';
+    const SECRET_KEY = 'secret_key';
+    const SECRET_CODE = 'secret_code';
     const CLIENT_DOMAIN = 'client_domain';
-    const OPTION = 'option';
+    const OPTIONS = 'options';
+    const METHOD_GLUE = '_';
 
-    private $_config = [];
-    private $_key;
-    private $_scode;
-    private $_cdomain;
-    private $_option;
+    protected $requestService;
+    protected $resource;
+    protected $cred;
 
-    public function __construct( String $_key, String $_scode, String $_cdomain, $_option = [] )
+    public function __construct( string $secret_key, string $secret_code, string $client_domain, $options = [] )
     {
 
-        $this->_key = $_key;
-        $this->_scode = $_scode;
-        $this->_cdomain = $_cdomain;
-        $this->_option = $_option;
+        // validate if require parameters are present
+        $this->_resolve_cred($secret_key, $secret_code, $client_domain);
 
+        $this->cred = [
+            $this::SECRET_KEY => $secret_key,
+            $this::SECRET_CODE => $secret_code,
+            $this::CLIENT_DOMAIN => $client_domain,
+            $this::OPTIONS => $options
+        ];
+        
+        // $this->requestService = new ModelServiceFactory ( $cred );
+        
     }
 
     public function __get( $resource )
-    {
-        return $this->getService( $resource );
+    {  
+        return (new ModelService ( $resource, $this->cred ));
     }
 
-    public function getService ( $resource ) 
-    {
-
-        self::set_cred();
-
-        if ( $ret = (new BridgeService ( $resource, $this->_config )) ) {
-
-            return $ret;
-
-        }
-
-        throw new \Exception("API endpoint not found.");
-    }
-
-    private function set_cred()
+    protected function _resolve_cred( $secret_key, $secret_code, $client_domain )
     {
         // 1. check key if not exist
-        if (!$this->_key)
+        if ( !$secret_key )
         {
             throw new \Exception("API key is required.");
         }
 
         // 2. check if secret code not exist
-        if ( !$this->_scode ) 
+        if ( !$secret_code ) 
         {
             throw new \Exception("API secret code is required");
         }
 
         // 3. check if client domain not exist
-        if ( !$this->_cdomain ) {
+        if ( !$client_domain ) {
             throw new \Exception("API client domain is required.");
         }
-
-        $this->_config = [
-            self::KEY => $this->_key,
-            self::CODE => $this->_scode,
-            self::CLIENT_DOMAIN => $this->_cdomain,
-            self::OPTION => $this->_option
-        ];
     }
 
 }
