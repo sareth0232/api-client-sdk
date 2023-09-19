@@ -1,8 +1,8 @@
 <?php
 
-namespace A8Client\libraries\Services;
+namespace A8\Client\Api\Services;
 
-use A8Client\libraries\Services\SecurityService;
+use A8\Client\Api\Services\SecurityService;
 
 class HeadersService
 {

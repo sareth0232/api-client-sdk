@@ -1,12 +1,12 @@
 <?php
 
-namespace A8Client\libraries\Services;
+namespace A8\Client\Api\Services;
 
 use GuzzleHttp\Client;
 use Firebase\JWT\JWT;
-use A8Client\libraries\Services\SecurityService;
-use A8Client\libraries\Services\HeaderService;
-use A8Client\Libs\Payloads;
+use A8\Client\Api\Services\SecurityService;
+use A8\Client\Api\Services\HeaderService;
+use A8\Client\Api\Libs\Payloads;
 
 class RequestService
 {

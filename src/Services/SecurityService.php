@@ -1,6 +1,6 @@
 <?php
 
-namespace A8Client\libraries\Services;
+namespace A8\Client\Api\Services;
 
 use Firebase\JWT\JWT;
 

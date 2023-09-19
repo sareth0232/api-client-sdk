@@ -1,6 +1,6 @@
 <?php
 
-namespace A8Client\libraries\Service;
+namespace A8\Client\Api\Services;
 
 class RemapResponseService
 {

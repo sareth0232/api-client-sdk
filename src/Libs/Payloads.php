@@ -1,6 +1,6 @@
 <?php
 
-namespace A8Client\Libs;
+namespace A8\Client\Api\Libs;
 
 class Payloads
 {

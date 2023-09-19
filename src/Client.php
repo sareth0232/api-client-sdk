@@ -1,8 +1,8 @@
 <?php
 
-namespace A8Client;
+namespace A8\Client\Api;
 
-use A8Client\libraries\Services\ModelService;
+use A8\Client\Api\Services\ModelService;
 
 class Client
 {
