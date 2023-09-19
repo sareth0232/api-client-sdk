@@ -6,7 +6,7 @@ use Firebase\JWT\JWT;
 
 class SecurityService
 {
-    const CONFIG_PATH = __DIR__.'/../../api_client_sdk_config.ini';
+    const CONFIG_PATH = __DIR__.'/../../user.ini';
     const GLUE = '/';
     const SIGN_GLUE = '\n';
 
