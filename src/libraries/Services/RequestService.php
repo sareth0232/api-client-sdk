@@ -5,10 +5,11 @@ namespace A8Client\libraries\Services;
 use GuzzleHttp\Client;
 use Firebase\JWT\JWT;
 use A8Client\libraries\Services\SecurityService;
+use A8Client\libraries\Services\HeaderService;
+use A8Client\Libs\Payloads;
 
-class RequestService extends SecurityService
+class RequestService
 {
-
     const CONFIG_PATH = __DIR__.'/../../api_client_sdk_config.ini';
     const HEADER_AUTHORIZATION = 'Authorization';
     const HEADER_ACCEPT = 'Accept';
@@ -19,6 +20,9 @@ class RequestService extends SecurityService
     const GLUE = '/';
     const SIGN_GLUE = '\n';
     const METHOD_GLUE = '_';
+    const DEFAULT_RESOURCE = 'ping';
+    const DEFAULT_METHOD = 'GET';
+    const DEFAULT_DATA_LIMIT = 1000;
     const REQUIRED_KEY = [
         'key',
         'code', 
@@ -26,56 +30,57 @@ class RequestService extends SecurityService
         'option'
     ];
 
-    private static $_client;
-    private static $_header;
-    private static $_current_timestamp;
-    private static $_method;
-    private static $_args;
-    private static $_auth_data;
-    private static $_authorization;
-    private static $_config;
-    private static $_body;
-    private static $_cred;
-    private static $_base_path;
-    private static $_auth_type;
+    protected $client;
+    protected $header;
+    protected $current_timestamp;
+    protected $method;
+    protected $args;
+    protected $auth_data;
+    protected $authorization;
+    protected $config;
+    protected $body;
+    protected $cred;
+    protected $base_path;
+    protected $auth_type;
+    protected $payloads;
 
-    private static function clientInstance()
-    {   
-        
-        static::initialize_config();
-        static::auth_data();
-        static::get_authorization();
-
-        static::$_current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
-
-        static::$_client = new Client([
-            'base_uri' => static::$_base_path,
-            'headers' => static::prep_headers(),
-            static::$_cred['key'] => static::auth(),
-            'http_errors'  => static::$_config['HTTP_ERRORS']
-        ]);
-    }
-    
-    public static function __callStatic($method, $args) 
+    public function __construct( $cred )
     {
-        static::get_cred($args);
-        static::$_method = $method;
-        static::$_args = static::get_params($args);
-        static::$_body = '';
+        $this->cred = $cred;
+        $this->current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
+        $this->_initialize_config();
+        $this->_auth_data();
+        $this->_get_authorization();
+
+        $this->client = new Client([
+            'base_uri' => $this->base_path,
+            'headers' => $this->_prep_headers(),
+            $this->cred['secret_key'] => $this->_auth(),
+            'http_errors' => $this->config['HTTP_ERRORS']
+        ]);
+
+        $this->payloads = new Payloads;
+
+    }
+
+    public function __call($method, $args) 
+    {
+        $this->method = $method;
+        $this->args = $args;
+        $this->body = '';
 
         $method = self::METHOD_GLUE.$method;
-
+    
         return static::$method();
 
     }
 
-    private static function send( $method, $path, $body = [] )
+    private function send( $method, $path, $body = [] )
     {
         try 
         {
-            static::clientInstance();
 
-            $response = static::$_client->request($method, self::GLUE.$path );
+            $response = $this->client->request($method, $path );
 
         }
         catch (\GuzzleHttp\Exception\RequestException $e)
@@ -99,50 +104,158 @@ class RequestService extends SecurityService
         }
     }
 
-    public static function _get()
+    private function _all()
     {
-        if ( count(static::$_args) === 4 )
+        $path = $this->args[0];
+        $select = $this->args[1];
+        $with = explode(',', $this->args[2]);
+        $path = $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select;
+
+        $ret = [];
+        $next = '';
+        $pages = 0;
+
+        do {
+            
+            $path = ( $next != '' ? $next : $path );
+
+            $payload = $this->send( $this::DEFAULT_METHOD, $path );
+
+            $get_next_data = $this->payloads->_get_next_data( $payload );
+
+            if ( isset( $get_next_data->next ) && isset( $get_next_data->items ) ) {
+
+                $ret[] = $get_next_data->items;
+
+                $next = str_replace($this->base_path, '', $get_next_data->next->href);
+
+            }
+
+            $pages++;
+
+        } while ( $this->payloads->_has_next( $payload ) && $pages < $this::DEFAULT_DATA_LIMIT );
+
+        return (object) $ret;
+    
+    }
+
+    private function _get()
+    {
+        if ( count($this->args) === 4 )
         {
-            $path = implode(self::GLUE, [static::$_args[0], static::$_args[1]]);
-            $select = static::$_args[2];
-            $with = explode(',', static::$_args[3]);
-            return static::send( static::$_method, $path.'?$expand='.$with[0].'&$select='.$select );
+            $path = implode($this::GLUE, [$this->args[0], $this->args[1]]);
+            $select = $this->args[2];
+            $with = explode(',', $this->args[3]);
+
+            return $this->send( $this->method, $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select );
         }
 
         throw new \Exception('Invalid arguments in get method.');
     }
 
-    private static function prep_headers()
+    private function _find () 
+    {
+        if ( count($this->args) === 7 )
+       {
+            $path = $this->args[0];
+            $where = $this->payloads->_conditions( $this->args[1] );
+            $sort = $this->payloads->_sort( $this->args[2] );
+            $limit = $this->args[3];
+            $offset = $this->args[4];
+            $select = $this->args[5];
+            $with = explode(',', $this->args[6]);
+            $path = $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select.'&'.$where.'&'.$sort.'&$limit='.$limit.'&$offset='.$offset;
+
+            return $this->send( $this::DEFAULT_METHOD, $path );
+        }
+
+        throw new \Exception('Invalid arguments in get method.');
+
+    }
+
+    private function _create ( array $data ) 
+    {
+
+        return $this->createService ( $data );
+
+    }
+
+    private function _update ( $id, array $data ) 
+    {
+
+        return $this->updateService ( $id, $data );
+
+    }
+
+    private function _delete ( $id ) 
+    {
+
+        return $this->deleteService ( $id );
+
+    }
+
+    private function _initialize_config()
+    {
+        if ( file_exists( $this::CONFIG_PATH ) ) 
+        {
+            $config = parse_ini_file($this::CONFIG_PATH);
+            if ( $config ) {
+                $this->config = $config;
+                $this->base_path = $this->config['BASE_URI'];
+                $this->auth_type = $this->config['AUTH_TYPE'];
+                
+                // 1. check if base_path key is exist
+                if ( array_key_exists('base_path', $this->cred['options']) )
+                {
+                    if ( $this->cred['options']['base_path'] ) 
+                    {
+                        $this->base_path = $this->cred['option']['base_path'];        
+                    }
+                }
+
+                // 2. check if auth_type key is exist
+                if ( array_key_exists('base_path', $this->cred['options']) )
+                {
+                    if ( $this->cred['options']['base_path'] ) 
+                    {
+                        $this->auth_type = $this->cred['options']['auth_type'];        
+                    }
+                }
+
+            }
+        }
+    }
+
+    private function _prep_headers()
     {
         return [
-            self::HEADER_AUTHORIZATION => 'Basic '.static::$_authorization,
-            self::HEADER_ACCEPT => 'application/json',
-            self::HEADER_CONTENT_TYPE => 'application/x-www-form-urlencoded',
-            self::HEADER_TIMESTAMP => static::$_current_timestamp,
-            self::HEADER_SIGNATURE => static::sign(),
-            self::HEADER_AUTH_TYPE => static::$_auth_type
+            $this::HEADER_AUTHORIZATION => 'Basic '.$this->authorization,
+            $this::HEADER_ACCEPT => 'application/json',
+            $this::HEADER_CONTENT_TYPE => 'application/x-www-form-urlencoded',
+            $this::HEADER_TIMESTAMP => $this->current_timestamp,
+            $this::HEADER_SIGNATURE => $this->_sign(),
+            $this::HEADER_AUTH_TYPE => $this->auth_type
         ];
     }
 
-    private static function auth()
+    private function _auth()
     {
-        $token = static::generate_token( static::$_args );
+        $token = $this->_generate_token( $this->args );
 
         return json_encode((object)[
-            "domain" => static::$_cred['client_domain'],
+            "domain" => $this->cred['client_domain'],
             "jwt" => $token
         ]);
     }
 
-    private static function generate_token( $data = null )
+    private function _generate_token( $data = null )
     {
+        $data['API_TIME'] = time();
         if ( $data && is_array( $data ) ) 
         {
             try
             {
-                $data['API_TIME'] = time();
-
-                return JWT::encode( $data, static::$_config['JWT_KEY'], static::$_config['JWT_ALGORITHM'] );
+                return JWT::encode( $data, $this->config['JWT_KEY'], $this->config['JWT_ALGORITHM'] );
             }
             catch ( Exception $e ) 
             {
@@ -157,105 +270,50 @@ class RequestService extends SecurityService
 
     }
 
-    private static function auth_data()
+    private function _sign()
     {
-        static::$_auth_data = json_encode([
-            'domain' => static::$_cred['client_domain'],
-            'jwt' => static::get_access(56)
-        ]);
-    }
-
-    private static function get_access( $person_id )
-    {
-        $payload = [
-            'exp' => time() + (int) static::$_config['TOKEN_TTL'],
-            'id' => $person_id,
-        ];
-                
-        return JWT::encode($payload, 
-            static::$_cred['code'],
-            static::$_config['JWT_ALGORITHM'],
-        );
-    }
-
-    private static function get_authorization()
-    {
-        static::$_authorization = base64_encode( static::$_cred['key'] . ':' . static::$_auth_data );
-    }
-
-    private static function initialize_config()
-    {
-        if ( file_exists( self::CONFIG_PATH ) ) 
-        {
-            $config = parse_ini_file(self::CONFIG_PATH);
-
-            if ( $config ) {
-                static::$_config = $config;
-                static::$_base_path = static::$_config['BASE_URI'];
-                static::$_auth_type = static::$_config['AUTH_TYPE'];
-
-                // 1. check if base_path key is exist
-                if ( array_key_exists('base_path', static::$_cred['option']) )
-                {
-                    if ( static::$_cred['option']['base_path'] ) 
-                    {
-                        static::$_base_path = static::$_cred['option']['base_path'];        
-                    }
-                }
-
-                // 2. check if auth_type key is exist
-                if ( array_key_exists('base_path', static::$_cred['option']) )
-                {
-                    if ( static::$_cred['option']['base_path'] ) 
-                    {
-                        static::$_auth_type = static::$_cred['option']['auth_type'];        
-                    }
-                }
-
-            }
-        }
-    }
-
-    private static function sign()
-    {
-        list($path, $query_str) = static::$_args;
+        list($path, $query_str) = $this->args;
 
         $query_str = explode("?", $query_str);
         
         $unsigned = [
-            static::$_method,
-            static::$_base_path.self::GLUE.$path.self::GLUE.$query_str[0],
+            $this->method,
+            $this->base_path.$this::GLUE.$path.$this::GLUE.$query_str[0],
             (isset($query_str[1]) ? $query_str[1] : '' ) ,
-            static::$_body,
-            static::$_current_timestamp
+            $this->body,
+            $this->current_timestamp
         ];
         
-        $to_sign = implode(self::SIGN_GLUE, $unsigned);
+        $to_sign = implode($this::SIGN_GLUE, $unsigned);
 
-        $signed = hash_hmac(static::$_config['ALGO'], $to_sign, static::$_cred['code']);
+        $signed = hash_hmac($this->config['ALGO'], $to_sign, $this->cred['secret_code']);
         return $signed;
     }
 
-    private static function get_cred( $args )
+    private function _get_authorization()
     {
-        $keys = [];
-
-        foreach ( self::REQUIRED_KEY as $k=>$val )
-        {
-            $keys[$val] = $args[(count($args)-1)][$val];
-        }
-
-        static::$_cred = $keys;
-
+        $this->authorization = base64_encode( $this->cred['secret_key'] . ':' . $this->auth_data );
     }
 
-    private static function get_params( $args )
+    private function _auth_data()
     {
-       
-        unset($args[(count($args)-1)]);
-        
-        return $args;
-    
+        $this->auth_data = json_encode([
+            'domain' => $this->cred['client_domain'],
+            'jwt' => $this->_get_access(56)
+        ]);
+    }
+
+    private function _get_access( $person_id )
+    {
+        $payload = [
+            'exp' => time() + (int) $this->config['TOKEN_TTL'],
+            'id' => $person_id,
+        ];
+                
+        return JWT::encode($payload, 
+            $this->cred['secret_code'],
+            $this->config['JWT_ALGORITHM'],
+        );
     }
 	
 }
