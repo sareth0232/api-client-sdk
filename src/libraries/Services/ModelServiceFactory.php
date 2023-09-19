@@ -4,121 +4,62 @@ namespace A8Client\libraries\Services;
 
 use A8Client\libraries\Services\RequestService;
 
-abstract class ModelServiceFactory
+class ModelService
 {
 
-    private $resource;
-    private $select;
-    private $with;
-    public $_cred;
-
-    public function __construct ( String $resource )
+    protected $resource;
+    protected $select;
+    protected $with;
+    protected $request_service;
+    
+    public function __construct ( $resource, $cred )
     {
-
         $this->resource = $resource;
-        $this->_cred = $this->_cred;
         $this->select = '';
         $this->with = '';
 
+        $this->request_service = new RequestService( $cred );
     }
     
     public function all()
     {
 
-        return $this->allService();
+        return $this->request_service->all($this->resource, $this->select, $this->with);
 
     }
 
     public function get ( $id ) 
     {
 
-        return $this->getService ( $id );
+        return $this->request_service->get($this->resource, $id, $this->select, $this->with);
 
     }
 
     public function find ( array $conditions, array $sort, int $limit, int $offset ) 
     {
 
-        return $this->findService ( $conditions, $sort, $limit, $offset );
-
+        return $this->request_service->find($this->resource, $conditions, $sort, $limit, $offset, $this->select, $this->with);;
+    
     }
 
     public function create ( array $data ) 
     {
 
-        return $this->createService ( $data );
+        return '';
 
     }
 
     public function update ( $id, array $data ) 
     {
 
-        return $this->updateService ( $id, $data );
+        return '';
 
     }
 
     public function delete ( $id ) 
     {
 
-        return $this->deleteService ( $id );
-
-    }
-
-    public function allService ()
-    {
-        
-        return [
-            'id' => 1,
-            "name" => 'Test',
-            "description" => 'Test description',
-            "company" => [
-                'id' => 1
-            ]
-        ];
-
-    }
-
-    public function getService ( $id )
-    {
-
-        return RequestService::get($this->resource, $id, $this->select, $this->with, $this->_cred);
-
-    }
-
-    public function findService ( array $conditions, array $sort, int $limit, int $offset ) 
-    {
-
-        return [
-            "select" => $this->select,
-            "with" => $this->with, 
-            "find:" => [$conditions, $sort, $limit, $offset]
-        ];
-
-    }
-
-    public function createService ( $data )
-    {
-        
-        return 1;
-
-    }
-
-    public function updateService ( $id, $data )
-    {
-        
-        return [
-            'id' => $id,
-            "name" => 'Test',
-            "description" => 'Test description',
-            "company" => $data
-        ];
-
-    }
-
-    public function deleteService ( $id )
-    {
-
-        return "Ok";
+        return '';
 
     }
 
