@@ -3,8 +3,6 @@
 namespace A8\Client\Api\Services;
 
 use GuzzleHttp\Client;
-use Firebase\JWT\JWT;
-use A8\Client\Api\Services\SecurityService;
 use A8\Client\Api\Services\HeadersService;
 use A8\Client\Api\Libs\Payloads;
 
@@ -29,8 +27,9 @@ class RequestService
     const GET_METHOD = 'GET';
     const POST_METHOD = 'POST';
     const PATCH_METHOD = 'PATCH';
+    const DELETE_METHOD = 'DELETE';
     const DEFAULT_DATA_LIMIT = 1000;
-    const HTTP_ERRORS = FALSE;
+    const HTTP_ERRORS = TRUE;
 
     // Class variables
     protected $client;
@@ -89,8 +88,10 @@ class RequestService
         try 
         {
             
-            $response = $this->client->request($method, $path);
+            $body = $this->_prep_body( $body );
 
+            $response = $this->client->request($method, $path, $body);
+        
         }
         catch (\GuzzleHttp\Exception\RequestException $e)
         {            
@@ -100,14 +101,14 @@ class RequestService
         $contents = json_decode($response->getBody()->getContents());
 
         if (is_null($contents)) {
-        
+            
             return (object) [
                 'code' => $response->getStatusCode(),
                 'message' => $response->getReasonPhrase()
             ];
         
         } else {
-            
+
             return $contents;
         
         }
@@ -159,7 +160,7 @@ class RequestService
         throw new \Exception('Invalid arguments in get method.');
     }
 
-    protected function _find () 
+    protected function _find() 
     {
         if ( count($this->args) === 7 )
        {
@@ -179,7 +180,7 @@ class RequestService
 
     }
 
-    protected function _create () 
+    protected function _create() 
     {
         if ( count( $this->args ) === 2 )
         {
@@ -192,18 +193,28 @@ class RequestService
         throw new \Exception('Invalid arguments in create method');
     }
 
-    protected function _update ( $id, array $data ) 
+    protected function _update() 
     {
 
-        return $this->updateService ( $id, $data );
-
+        if ( count( $this->args ) === 3 )
+        {
+            $path = $this::GLUE . implode($this::GLUE, [$this->args[0], $this->args[1]]);
+            $body = $this->args[2];
+            
+            return $this->send( $this::PATCH_METHOD, $path, $body );
+        }
+        throw new \Exception('Invalid arguments in create method');
     }
 
-    protected function _delete ( $id ) 
+    protected function _delete() 
     {
+        if ( count( $this->args ) === 2 )
+        {
+            $path = $this::GLUE . implode($this::GLUE, [$this->args[0], $this->args[1]]);
 
-        return $this->deleteService ( $id );
-
+            return $this->send( $this::DELETE_METHOD, $path );
+        }
+        throw new \Exception('Invalid arguments in create method');
     }
 
     protected function _initialize_system_operators()
@@ -320,6 +331,11 @@ class RequestService
     protected function _prep_query()
     {
         return substr($this->select . $this->with . $this->filter . $this->sort . $this->limit . $this->offset, 1);
+    }
+
+    protected function _prep_body( $body )
+    {
+        return ['form_params' => $body ?? ""]; 
     }
 
     protected function _is_operator_valid( $operator )
