@@ -5,7 +5,9 @@ namespace A8\Client\Api\Services;
 use GuzzleHttp\Client;
 use A8\Client\Api\Services\SecurityService;
 use A8\Client\Api\Services\HeadersService;
+use A8\Client\Api\Services\RemapResponseService;
 use A8\Client\Api\Libs\Payloads;
+use A8\Client\Api\Libs\Exceptions;
 
 class RequestService
 {
@@ -30,7 +32,8 @@ class RequestService
     const PATCH_METHOD = 'PATCH';
     const DELETE_METHOD = 'DELETE';
     const DEFAULT_DATA_LIMIT = 1000;
-    const HTTP_ERRORS = TRUE;
+    const HTTP_ERRORS = FALSE;
+    const SYSTEM_ERROR = 'E00000';
 
     // Class variables
     protected $client;
@@ -56,6 +59,8 @@ class RequestService
         $this->cred = $cred;
         $this->current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
         $this->_initialize_system_operators();
+        $this->remamp_response = new RemapResponseService;
+        $this->exception = new Exceptions;
         $this->headers = new HeadersService( $this->cred, $this->args, $this->method );
 
         if ( empty($this->client) ) {
@@ -96,17 +101,14 @@ class RequestService
         }
         catch (\GuzzleHttp\Exception\RequestException $e)
         {            
-            return $response = $e->getMessage();
+            return $this->exception->_generate_error($this::SYSTEM_ERROR, $e->getMessage());
         }
         
         $contents = json_decode($response->getBody()->getContents());
 
         if (is_null($contents)) {
             
-            return (object) [
-                'code' => $response->getStatusCode(),
-                'message' => $response->getReasonPhrase()
-            ];
+            return $this->exception->_generate_error($this::SYSTEM_ERROR, $response->getReasonPhrase());
         
         } else {
 
@@ -117,48 +119,61 @@ class RequestService
 
     private function _all()
     {
-        $path = $this->args[0];
-        $select = $this->_prep_select( $this->args[1] );
-        $with = $this->_prep_with( $this->args[2] );
-        $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
-        
-        $ret = [];
-        $next = '';
-        $pages = 0;
-
-        do {
+        if ( count($this->args) === 3 )
+        {
+            $path = $this->args[0];
+            $this->_prep_select( $this->args[1] );
+            $this->_prep_with( $this->args[2] );
+            $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
             
-            $path = ( $next ? $next : $path );
-            $payload = $this->send( $this::GET_METHOD, $path );
-            $get_next_data = $this->payloads->_get_next_data( $payload );
+            $items = [];
+            $next = '';
+            $pages = 0;
 
-            if ( isset( $get_next_data->next ) && isset( $get_next_data->items ) ) 
+            do {
+                
+                $path = ( $next ? $next : $path );
+                $payload = $this->send( $this::GET_METHOD, $path );
+                $get_next_data = $this->payloads->_get_next_data( $payload );
+
+                if ( isset( $get_next_data->next ) && isset( $get_next_data->items ) ) 
+                {
+                    array_push($items, $get_next_data->items);
+                    $next = str_replace($this->headers->base_path, '', $get_next_data->next->href);
+                }
+
+                $pages++;
+            } while ( $this->payloads->_has_next( $payload ) && $pages < $this::DEFAULT_DATA_LIMIT );
+
+            if ( $ret = (object) $items )
             {
-                $ret[] = $get_next_data->items;
-                $next = str_replace($this->headers->base_path, '', $get_next_data->next->href);
+                $with = $this->args[2];
+                return $this->remamp_response->_all_response( $ret, $with );
             }
-
-            $pages++;
-        } while ( $this->payloads->_has_next( $payload ) && $pages < $this::DEFAULT_DATA_LIMIT );
-
-        return (object) $ret;
-    
+        }
+        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid arguments in all method.");
     }
 
     protected function _get()
     {
         if ( count($this->args) === 4 )
         {
-
             $path = implode($this::GLUE, [$this->args[0], $this->args[1]]);
-            $with = $this->_prep_with( $this->args[3] );
-            $select = $this->_prep_select( $this->args[2] );
+            $this->_prep_select( $this->args[2] );   
+            $this->_prep_with( $this->args[3] ); 
             $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
             
-            return $this->send( $this->method, $path );
+            if ( $ret = $this->send( $this->method, $path ) )
+            {
+                $with = $this->args[3];
+                return $this->remamp_response->_single_response( $ret, $with );
+            }
+
+            return $this->exception->_generate_error($this::SYSTEM_ERROR, "Could not read response.");
+        
         }
 
-        throw new \Exception('Invalid arguments in get method.');
+        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid arguments in get method.");
     }
 
     protected function _find() 
@@ -166,18 +181,22 @@ class RequestService
         if ( count($this->args) === 7 )
        {
             $path = $this->args[0];
-            $where = $this->_prep_filter( $this->args[1] );
-            $sort = $this->_prep_sort( $this->args[2] );
-            $limit = $this->_prep_limit( $this->args[3] );
-            $offset = $this->_prep_offset( $this->args[4] );
-            $select = $this->_prep_select( $this->args[5] );
-            $with = $this->_prep_with( $this->args[6] );
+            $this->_prep_filter( $this->args[1] );
+            $this->_prep_sort( $this->args[2] );
+            $this->_prep_limit( $this->args[3] );
+            $this->_prep_offset( $this->args[4] );
+            $this->_prep_select( $this->args[5] );
+            $this->_prep_with( $this->args[6] );
             $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
             
-            return $this->send( $this::GET_METHOD, $path );
+            if ( $ret = $this->send( $this::GET_METHOD, $path ) )
+            {
+                $with = $this->args[6];
+                return $this->remamp_response->_multiple_response( $ret, $with );
+            }
         }
 
-        throw new \Exception('Invalid arguments in get method.');
+        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid arguments in find method.");
 
     }
 
@@ -191,7 +210,7 @@ class RequestService
             return $this->send( $this::POST_METHOD, $path, $body );
         }
 
-        throw new \Exception('Invalid arguments in create method');
+        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid arguments in create method.");
     }
 
     protected function _update() 
@@ -204,7 +223,7 @@ class RequestService
             
             return $this->send( $this::PATCH_METHOD, $path, $body );
         }
-        throw new \Exception('Invalid arguments in create method');
+        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid arguments in update method.");
     }
 
     protected function _delete() 
@@ -215,7 +234,7 @@ class RequestService
 
             return $this->send( $this::DELETE_METHOD, $path );
         }
-        throw new \Exception('Invalid arguments in create method');
+        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid arguments in delete method.");
     }
 
     protected function _initialize_system_operators()
@@ -270,7 +289,7 @@ class RequestService
                     }
                     else 
                     {
-                        throw new \Exception("Invalid operator provided");
+                        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid operator provided");
                     }
                 }
                 // check if has 2nd index
@@ -282,7 +301,7 @@ class RequestService
                 }
                 else
                 {
-                    throw new \Exception("Invalid operator provided");
+                    return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid operator provided");
                 }
             }
             $this->filter = '&$filter=' . substr($queries, 4);
@@ -310,7 +329,7 @@ class RequestService
                         $queries .= "," . $system_order[$order] . "{$field}";
                     }
                     else {
-                        throw new \Exception("Invalid sort order");
+                        return $this->exception->_generate_error($this::SYSTEM_ERROR, "Invalid sort order");
                     }
                 }
             }
