@@ -1,24 +1,17 @@
 <?php
 
-namespace A8\Client\Api\Services;
+namespace A8Client\libraries\Services;
 
 use GuzzleHttp\Client;
 use Firebase\JWT\JWT;
-use A8\Client\Api\Services\SecurityService;
-use A8\Client\Api\Services\HeaderService;
-use A8\Client\Api\Libs\Payloads;
+use A8Client\libraries\Services\SecurityService;
+use A8Client\libraries\Services\HeadersService;
+use A8Client\Libs\Payloads;
 
 class RequestService
 {
-    const CONFIG_PATH = __DIR__.'/../../api_client_sdk_config.ini';
-    const HEADER_AUTHORIZATION = 'Authorization';
-    const HEADER_ACCEPT = 'Accept';
-    const HEADER_CONTENT_TYPE = 'Content-Type';
-    const HEADER_TIMESTAMP = 'Aas-Timestamp';
-    const HEADER_SIGNATURE = 'Aas-Signature';
-    const HEADER_AUTH_TYPE = 'Aas-Auth-Type';
+    
     const GLUE = '/';
-    const SIGN_GLUE = '\n';
     const METHOD_GLUE = '_';
     const DEFAULT_RESOURCE = 'ping';
     const DEFAULT_METHOD = 'GET';
@@ -48,18 +41,17 @@ class RequestService
     {
         $this->cred = $cred;
         $this->current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
-        $this->_initialize_config();
-        $this->_auth_data();
-        $this->_get_authorization();
+        $this->headers = new HeadersService( $this->cred, $this->args, $this->method );
 
         $this->client = new Client([
-            'base_uri' => $this->base_path,
-            'headers' => $this->_prep_headers(),
-            $this->cred['secret_key'] => $this->_auth(),
+            'base_uri' => $this->headers->base_path,
+            'headers' => $this->headers->_prep_headers(),
+            $this->cred['secret_key'] => $this->headers->_auth(),
             'http_errors' => $this->config['HTTP_ERRORS']
         ]);
-
+        
         $this->payloads = new Payloads;
+        
 
     }
 
@@ -166,7 +158,7 @@ class RequestService
             $with = explode(',', $this->args[6]);
             $path = $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select.'&'.$where.'&'.$sort.'&$limit='.$limit.'&$offset='.$offset;
 
-            return $this->send( $this::DEFAULT_METHOD, $path );
+            return $this->send( $this::DEFAULT_RESOURCE, $path );
         }
 
         throw new \Exception('Invalid arguments in get method.');
@@ -194,126 +186,14 @@ class RequestService
 
     }
 
-    private function _initialize_config()
-    {
-        if ( file_exists( $this::CONFIG_PATH ) ) 
-        {
-            $config = parse_ini_file($this::CONFIG_PATH);
-            if ( $config ) {
-                $this->config = $config;
-                $this->base_path = $this->config['BASE_URI'];
-                $this->auth_type = $this->config['AUTH_TYPE'];
-                
-                // 1. check if base_path key is exist
-                if ( array_key_exists('base_path', $this->cred['options']) )
-                {
-                    if ( $this->cred['options']['base_path'] ) 
-                    {
-                        $this->base_path = $this->cred['option']['base_path'];        
-                    }
-                }
-
-                // 2. check if auth_type key is exist
-                if ( array_key_exists('base_path', $this->cred['options']) )
-                {
-                    if ( $this->cred['options']['base_path'] ) 
-                    {
-                        $this->auth_type = $this->cred['options']['auth_type'];        
-                    }
-                }
-
-            }
-        }
-    }
-
     private function _prep_headers()
     {
-        return [
-            $this::HEADER_AUTHORIZATION => 'Basic '.$this->authorization,
-            $this::HEADER_ACCEPT => 'application/json',
-            $this::HEADER_CONTENT_TYPE => 'application/x-www-form-urlencoded',
-            $this::HEADER_TIMESTAMP => $this->current_timestamp,
-            $this::HEADER_SIGNATURE => $this->_sign(),
-            $this::HEADER_AUTH_TYPE => $this->auth_type
-        ];
+        
     }
 
     private function _auth()
     {
-        $token = $this->_generate_token( $this->args );
-
-        return json_encode((object)[
-            "domain" => $this->cred['client_domain'],
-            "jwt" => $token
-        ]);
-    }
-
-    private function _generate_token( $data = null )
-    {
-        $data['API_TIME'] = time();
-        if ( $data && is_array( $data ) ) 
-        {
-            try
-            {
-                return JWT::encode( $data, $this->config['JWT_KEY'], $this->config['JWT_ALGORITHM'] );
-            }
-            catch ( Exception $e ) 
-            {
-                return "Message: ".$e->getMessage();
-            }
-
-        }
-        else
-        {
-            return "Token data is required";
-        }
-
-    }
-
-    private function _sign()
-    {
-        list($path, $query_str) = $this->args;
-
-        $query_str = explode("?", $query_str);
         
-        $unsigned = [
-            $this->method,
-            $this->base_path.$this::GLUE.$path.$this::GLUE.$query_str[0],
-            (isset($query_str[1]) ? $query_str[1] : '' ) ,
-            $this->body,
-            $this->current_timestamp
-        ];
-        
-        $to_sign = implode($this::SIGN_GLUE, $unsigned);
-
-        $signed = hash_hmac($this->config['ALGO'], $to_sign, $this->cred['secret_code']);
-        return $signed;
-    }
-
-    private function _get_authorization()
-    {
-        $this->authorization = base64_encode( $this->cred['secret_key'] . ':' . $this->auth_data );
-    }
-
-    private function _auth_data()
-    {
-        $this->auth_data = json_encode([
-            'domain' => $this->cred['client_domain'],
-            'jwt' => $this->_get_access(56)
-        ]);
-    }
-
-    private function _get_access( $person_id )
-    {
-        $payload = [
-            'exp' => time() + (int) $this->config['TOKEN_TTL'],
-            'id' => $person_id,
-        ];
-                
-        return JWT::encode($payload, 
-            $this->cred['secret_code'],
-            $this->config['JWT_ALGORITHM'],
-        );
     }
 	
 }
