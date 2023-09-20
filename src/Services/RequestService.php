@@ -3,6 +3,7 @@
 namespace A8\Client\Api\Services;
 
 use GuzzleHttp\Client;
+use A8\Client\Api\Services\SecurityService;
 use A8\Client\Api\Services\HeadersService;
 use A8\Client\Api\Libs\Payloads;
 
@@ -263,8 +264,13 @@ class RequestService
                 if ( count( $filter ) === 3 ) 
                 {
                     list($field, $value, $operator) = $filter;
-                    if ( $this->_is_operator_valid( $operator ) ) {
+                    if ( $this->_is_operator_valid( $operator ) ) 
+                    {
                         $queries .= "and {$field} " . $this->_get_system_operator( $operator ) . " {$value} ";
+                    }
+                    else 
+                    {
+                        throw new \Exception("Invalid operator provided");
                     }
                 }
                 // check if has 2nd index
