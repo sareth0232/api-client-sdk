@@ -38,28 +38,28 @@ class ModelService
     public function find ( array $conditions, array $sort, int $limit, int $offset ) 
     {
 
-        return $this->request_service->find($this->resource, $conditions, $sort, $limit, $offset, $this->select, $this->with);;
+        return $this->request_service->find($this->resource, $conditions, $sort, $limit, $offset, $this->select, $this->with);
     
     }
 
     public function create ( array $data ) 
     {
 
-        return '';
+        return $this->request_service->create($this->resource, $data);
 
     }
 
     public function update ( $id, array $data ) 
     {
 
-        return '';
+        return $this->request_service->update($this->resource, $id, $data);
 
     }
 
     public function delete ( $id ) 
     {
 
-        return '';
+        return $this->request_service->delete($this->resource, $id);
 
     }
 
