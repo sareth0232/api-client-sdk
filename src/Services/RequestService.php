@@ -1,54 +1,71 @@
 <?php
 
-namespace A8Client\libraries\Services;
+namespace A8\Client\Api\Services;
 
 use GuzzleHttp\Client;
 use Firebase\JWT\JWT;
-use A8Client\libraries\Services\SecurityService;
-use A8Client\libraries\Services\HeadersService;
-use A8Client\Libs\Payloads;
+use A8\Client\Api\Services\SecurityService;
+use A8\Client\Api\Services\HeadersService;
+use A8\Client\Api\Libs\Payloads;
 
 class RequestService
 {
-    
+    const OPERATOR_EQUAL = '==';
+    const OPERATOR_NOT_EQUAL = '!=';
+    const OPERATOR_EQUAL_BLANK = '= '; 
+    const OPERATOR_NOT_EQUAL_BLANK = '! ';
+    const OPERATOR_LESS_THAN = '<';
+    const OPERATOR_LESS_THAN_OR_EQUAL = '<=';
+    const OPERATOR_GREATER_THAN = '>';
+    const OPERATOR_GREATER_THAN_OR_EQUAL = '>=';
+    const OPERATOR_CONTAIN = 'like';
+    const OPERATOR_DOES_NOT_CONTAIN = 'not like';
+    const OPERATOR_CONTAIN_LANG_SET = 'translate';
+    const OPERATOR_DOES_NOT_CONTAIN_LANG_SET = 'not translate';
+
     const GLUE = '/';
     const METHOD_GLUE = '_';
     const DEFAULT_RESOURCE = 'ping';
-    const DEFAULT_METHOD = 'GET';
+    const GET_METHOD = 'GET';
+    const POST_METHOD = 'POST';
+    const PATCH_METHOD = 'PATCH';
     const DEFAULT_DATA_LIMIT = 1000;
-    const REQUIRED_KEY = [
-        'key',
-        'code', 
-        'client_domain', 
-        'option'
-    ];
+    const HTTP_ERRORS = FALSE;
 
+    // Class variables
     protected $client;
-    protected $header;
     protected $current_timestamp;
     protected $method;
     protected $args;
-    protected $auth_data;
-    protected $authorization;
-    protected $config;
     protected $body;
     protected $cred;
-    protected $base_path;
-    protected $auth_type;
     protected $payloads;
+    
+    // Use for request variables
+    protected $select;
+    protected $with;
+    protected $filter;
+    protected $sort;
+    protected $limit;
+    protected $offset;
+
+    protected $sysmtem_operators;
 
     public function __construct( $cred )
     {
         $this->cred = $cred;
         $this->current_timestamp = gmdate('Y-m-d\TH:i:s\Z');
+        $this->_initialize_system_operators();
         $this->headers = new HeadersService( $this->cred, $this->args, $this->method );
 
-        $this->client = new Client([
-            'base_uri' => $this->headers->base_path,
-            'headers' => $this->headers->_prep_headers(),
-            $this->cred['secret_key'] => $this->headers->_auth(),
-            'http_errors' => $this->config['HTTP_ERRORS']
-        ]);
+        if ( empty($this->client) ) {
+            $this->client = new Client([
+                'base_uri' => $this->headers->base_path,
+                'headers' => $this->headers->_prep_headers(),
+                $this->cred['secret_key'] => $this->headers->_auth(),
+                'http_errors' => $this::HTTP_ERRORS
+            ]);
+        }
         
         $this->payloads = new Payloads;
         
@@ -71,8 +88,8 @@ class RequestService
     {
         try 
         {
-
-            $response = $this->client->request($method, $path );
+            
+            $response = $this->client->request($method, $path);
 
         }
         catch (\GuzzleHttp\Exception\RequestException $e)
@@ -99,99 +116,228 @@ class RequestService
     private function _all()
     {
         $path = $this->args[0];
-        $select = $this->args[1];
-        $with = explode(',', $this->args[2]);
-        $path = $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select;
-
+        $select = $this->_prep_select( $this->args[1] );
+        $with = $this->_prep_with( $this->args[2] );
+        $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
+        
         $ret = [];
         $next = '';
         $pages = 0;
 
         do {
             
-            $path = ( $next != '' ? $next : $path );
-
-            $payload = $this->send( $this::DEFAULT_METHOD, $path );
-
+            $path = ( $next ? $next : $path );
+            $payload = $this->send( $this::GET_METHOD, $path );
             $get_next_data = $this->payloads->_get_next_data( $payload );
 
-            if ( isset( $get_next_data->next ) && isset( $get_next_data->items ) ) {
-
+            if ( isset( $get_next_data->next ) && isset( $get_next_data->items ) ) 
+            {
                 $ret[] = $get_next_data->items;
-
-                $next = str_replace($this->base_path, '', $get_next_data->next->href);
-
+                $next = str_replace($this->headers->base_path, '', $get_next_data->next->href);
             }
 
             $pages++;
-
         } while ( $this->payloads->_has_next( $payload ) && $pages < $this::DEFAULT_DATA_LIMIT );
 
         return (object) $ret;
     
     }
 
-    private function _get()
+    protected function _get()
     {
         if ( count($this->args) === 4 )
         {
-            $path = implode($this::GLUE, [$this->args[0], $this->args[1]]);
-            $select = $this->args[2];
-            $with = explode(',', $this->args[3]);
 
-            return $this->send( $this->method, $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select );
+            $path = implode($this::GLUE, [$this->args[0], $this->args[1]]);
+            $with = $this->_prep_with( $this->args[3] );
+            $select = $this->_prep_select( $this->args[2] );
+            $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
+            
+            return $this->send( $this->method, $path );
         }
 
         throw new \Exception('Invalid arguments in get method.');
     }
 
-    private function _find () 
+    protected function _find () 
     {
         if ( count($this->args) === 7 )
        {
             $path = $this->args[0];
-            $where = $this->payloads->_conditions( $this->args[1] );
-            $sort = $this->payloads->_sort( $this->args[2] );
-            $limit = $this->args[3];
-            $offset = $this->args[4];
-            $select = $this->args[5];
-            $with = explode(',', $this->args[6]);
-            $path = $this::GLUE.$path.'?$expand='.$with[0].'&$select='.$select.'&'.$where.'&'.$sort.'&$limit='.$limit.'&$offset='.$offset;
-
-            return $this->send( $this::DEFAULT_RESOURCE, $path );
+            $where = $this->_prep_filter( $this->args[1] );
+            $sort = $this->_prep_sort( $this->args[2] );
+            $limit = $this->_prep_limit( $this->args[3] );
+            $offset = $this->_prep_offset( $this->args[4] );
+            $select = $this->_prep_select( $this->args[5] );
+            $with = $this->_prep_with( $this->args[6] );
+            $path = $this::GLUE . $path . ( $this->_prep_query() ? "?" . $this->_prep_query() : "" );
+            
+            return $this->send( $this::GET_METHOD, $path );
         }
 
         throw new \Exception('Invalid arguments in get method.');
 
     }
 
-    private function _create ( array $data ) 
+    protected function _create () 
     {
+        if ( count( $this->args ) === 2 )
+        {
+            $path = $this::GLUE . $this->args[0];
+            $body = $this->args[1];
 
-        return $this->createService ( $data );
+            return $this->send( $this::POST_METHOD, $path, $body );
+        }
 
+        throw new \Exception('Invalid arguments in create method');
     }
 
-    private function _update ( $id, array $data ) 
+    protected function _update ( $id, array $data ) 
     {
 
         return $this->updateService ( $id, $data );
 
     }
 
-    private function _delete ( $id ) 
+    protected function _delete ( $id ) 
     {
 
         return $this->deleteService ( $id );
 
     }
 
-    private function _prep_headers()
+    protected function _initialize_system_operators()
+    {
+        $this->sysmtem_operators = [
+            $this::OPERATOR_EQUAL => '==',
+            $this::OPERATOR_NOT_EQUAL => '!=',
+            $this::OPERATOR_EQUAL_BLANK => '=~',
+            $this::OPERATOR_NOT_EQUAL_BLANK => '!~',
+            $this::OPERATOR_LESS_THAN => '<',
+            $this::OPERATOR_LESS_THAN_OR_EQUAL => '<=',
+            $this::OPERATOR_GREATER_THAN => '>',
+            $this::OPERATOR_GREATER_THAN_OR_EQUAL => '>=',
+            $this::OPERATOR_CONTAIN => '=@',
+            $this::OPERATOR_DOES_NOT_CONTAIN => '!@',
+            $this::OPERATOR_CONTAIN_LANG_SET => '=%',
+            $this::OPERATOR_DOES_NOT_CONTAIN_LANG_SET => '!%'
+        ];
+    }
+
+    protected function _prep_select( $params )
+    {
+        if ( trim ( $params ) ) 
+        {
+            $this->select = '&$select=' . trim ( $params );
+        }
+    }
+
+    protected function _prep_with( $params )
+    {
+        if ( trim ( $params ) )
+        {
+            $this->with = '&$expand=' . trim ( $params );
+        }
+    }
+
+    protected function _prep_filter( $params )
+    {
+        $queries = "";
+
+        if ( $params )
+        {
+            foreach ( $params as $filter )
+            {
+                // check if has 3rd index
+                if ( count( $filter ) === 3 ) 
+                {
+                    list($field, $value, $operator) = $filter;
+                    if ( $this->_is_operator_valid( $operator ) ) {
+                        $queries .= "and {$field} " . $this->_get_system_operator( $operator ) . " {$value} ";
+                    }
+                }
+                // check if has 2nd index
+                else if ( count( $filter ) === 2 )
+                {
+                    list($field, $value) = $filter;
+
+                    $queries .= "and {$field} == {$value} ";
+                }
+                else
+                {
+                    throw new \Exception("Invalid operator provided");
+                }
+            }
+            $this->filter = '&$filter=' . substr($queries, 4);
+        }
+    }
+
+    protected function _prep_sort( $params )
+    {
+        $queries = "";
+        $system_order = [
+            "desc" => "-",
+            "asc" => "",
+        ];
+
+        if ( $params )
+        {
+            foreach ( $params as $sort )
+            {
+                // check if has to indexes
+                if ( count( $sort ) === 2 )
+                {
+                    list($field, $order) = $sort;
+                    if ( isset ( $system_order[$order] ) )
+                    {
+                        $queries .= "," . $system_order[$order] . "{$field}";
+                    }
+                    else {
+                        throw new \Exception("Invalid sort order");
+                    }
+                }
+            }
+            $this->sort = '&$sort=' . substr($queries, 1);
+        }
+    }
+
+    protected function _prep_limit ( $limit )
+    {
+        if ( $limit )
+        {
+            $this->limit = '&$limit=' . $limit;   
+        }
+    }
+
+    protected function _prep_offset ( $offset )
+    {
+        if ( $offset )
+        {
+            $this->offset = '&$offset=' . $offset;   
+        }
+    }
+
+    protected function _prep_query()
+    {
+        return substr($this->select . $this->with . $this->filter . $this->sort . $this->limit . $this->offset, 1);
+    }
+
+    protected function _is_operator_valid( $operator )
+    {
+        return isset( $this->sysmtem_operators[ $operator ] );
+    }
+
+    protected function _get_system_operator($operator)
+    {
+        return $this->sysmtem_operators[ $operator ] ?? '';
+    }
+
+    protected function _prep_headers()
     {
         
     }
 
-    private function _auth()
+    protected function _auth()
     {
         
     }
